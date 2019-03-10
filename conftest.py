@@ -6,12 +6,16 @@ from selenium.webdriver.remote.remote_connection import RemoteConnection
 from os import environ
 
 
-def pytest_runtest_protocol(item, nextitem):
-    reports = runtestprotocol(item, nextitem=nextitem)
-    for report in reports:
-        if report.when == 'call':
-            print('\n%s --- %s' % (item.name, report.outcome))
-    return True
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    """Needed pytest hook for accessing pass/fail results
+    in the pytest fixture here.
+    """
+    outcome = yield
+    rep = outcome.get_result()
+    setattr(item, "rep_" + rep.when, rep)
+    return rep
+
 
 @pytest.fixture
 def browser(request):
@@ -30,7 +34,7 @@ def browser(request):
     caps['username'] = username
     caps['accesskey'] = access_key
     caps['name'] = request.node.name
-    caps['buildTag'] = build_tag
+    caps['build'] = build_tag
 
     executor = RemoteConnection(selenium_endpoint, resolve_ip=False)
     remote = webdriver.Remote(
@@ -40,4 +44,7 @@ def browser(request):
 
     browser = Browser(browser=remote, desired_capabilities=caps)
     yield browser
+    
+    sauce_result = "failed" if request.node.rep_call.failed else "passed"
+    browser.execute_script("sauce:job-result={}".format(sauce_result))
     browser.quit()
