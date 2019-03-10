@@ -1,3 +1,4 @@
 selenium==3.14.0
 pytest
 nerodia
+pytest-xdist
